@@ -2,9 +2,9 @@ version: "3.9"
 
 services:
   bettafish:
-    image: ghcr.io/666ghj/bettafish:latest
+    #image: ghcr.io/666ghj/bettafish:latest
     # Speed up mirror
-    # image: ghcr.nju.edu.cn/666ghj/bettafish:latest
+    image: ghcr.nju.edu.cn/666ghj/bettafish:latest
     container_name: bettafish
     restart: unless-stopped
     environment:
@@ -23,7 +23,7 @@ services:
       - ./query_engine_streamlit_reports:/app/query_engine_streamlit_reports
 
   db:
-    image: postgres:15
+    image: docker.m.daocloud.io/library/postgres:15
     container_name: bettafish-db
     restart: unless-stopped
     env_file:
