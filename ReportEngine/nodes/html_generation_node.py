@@ -124,6 +124,7 @@ class HTMLGenerationNode(StateMutationNode):
                 logger.info("处理后内容为空，返回原始输出")
                 html_content = output
             
+            html_content = self._inject_controls_and_scripts(html_content)
             logger.info(f"HTML处理完成，最终长度: {len(html_content)} 字符")
             return html_content
             
@@ -213,6 +214,11 @@ class HTMLGenerationNode(StateMutationNode):
 </head>
 <body>
     <div class="container">
+        <div style="display:flex;gap:12px;margin-bottom:16px;">
+            <button id="printBtn" style="padding:8px 14px;background:#e74c3c;color:#fff;border:none;border-radius:4px;">打印报告</button>
+            <button id="exportBtn" style="padding:8px 14px;background:#e74c3c;color:#fff;border:none;border-radius:4px;">导出PDF</button>
+            <button id="themeBtn" style="padding:8px 14px;background:#ecf0f1;color:#333;border:none;border-radius:4px;">切换主题</button>
+        </div>
         <h1>{query}</h1>
         
         <div class="meta">
@@ -246,9 +252,80 @@ class HTMLGenerationNode(StateMutationNode):
             <p>ReportEngine v1.0 | 生成时间: {generation_time}</p>
         </div>
     </div>
+    <script>
+    (function(){
+      function filename(){
+        var t=document.querySelector('h1');
+        var n=t?t.textContent.trim():'报告';
+        n=n.replace(/[\\/:*?"<>|]/g,'_');
+        var d=new Date();
+        function pad(x){return String(x).padStart(2,'0');}
+        var ts=d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+        return n+'_'+ts+'.pdf';
+      }
+      var p=document.getElementById('printBtn');
+      if(p){p.addEventListener('click',function(){window.print();});}
+      var e=document.getElementById('exportBtn');
+      if(e){
+        e.addEventListener('click',function(){
+          var el=document.body;
+          var opt={margin:0.5,filename:filename(),image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'in',format:'a4',orientation:'portrait'}};
+          if(window.html2pdf){html2pdf().set(opt).from(el).save();}else{window.print();}
+        });
+      }
+      var t=document.getElementById('themeBtn');
+      if(t){t.addEventListener('click',function(){
+        var cur=document.documentElement.getAttribute('data-theme');
+        document.documentElement.setAttribute('data-theme',cur==='dark'?'':'dark');
+      });}
+    })();
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 </body>
 </html>"""
         
         return html_content
+
+    def _inject_controls_and_scripts(self, html_content: str) -> str:
+        try:
+            lower = html_content.lower()
+            needs_toolbar = ('id="printbtn"' not in lower) or ('id="exportbtn"' not in lower) or ('id="themebtn"' not in lower)
+            toolbar_html = (
+                '<div class="controls" style="display:flex;gap:12px;margin-top:12px;">'
+                '<button class="btn btn-primary" id="printBtn">打印报告</button>'
+                '<button class="btn btn-primary" id="exportBtn">导出PDF</button>'
+                '<button class="btn btn-secondary" id="themeBtn">切换主题</button>'
+                '</div>'
+            )
+            if needs_toolbar:
+                if '<header' in lower and '</header>' in lower:
+                    idx = lower.find('</header>')
+                    html_content = html_content[:idx] + toolbar_html + html_content[idx:]
+                elif '<body' in lower:
+                    insert_idx = lower.find('>')
+                    body_start = lower.find('<body')
+                    body_close = lower.find('>', body_start)
+                    html_content = html_content[:body_close+1] + toolbar_html + html_content[body_close+1:]
+                else:
+                    html_content = toolbar_html + html_content
+            script_block = (
+                '<script>'
+                '(function(){'
+                'function f(){var h=document.querySelector("h1");var n=h?h.textContent.trim():"报告";n=n.replace(/[\\/:*?\"<>|]/g,"_");var d=new Date();function p(x){return String(x).padStart(2,"0");}var ts=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes());return n+"_"+ts+".pdf";}'
+                'var a=document.getElementById("printBtn");if(a){a.addEventListener("click",function(){window.print();});}'
+                'var b=document.getElementById("exportBtn");if(b){b.addEventListener("click",function(){var el=document.body;var opt={margin:0.5,filename:f(),image:{type:"jpeg",quality:0.95},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}};if(window.html2pdf){html2pdf().set(opt).from(el).save();}else{window.print();}});}'
+                'var c=document.getElementById("themeBtn");if(c){c.addEventListener("click",function(){var cur=document.documentElement.getAttribute("data-theme");document.documentElement.setAttribute("data-theme",cur==="dark"?"":"dark");});}'
+                '})();'
+                '</script>'
+            )
+            cdn = '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>'
+            if '</body>' in lower:
+                pos = lower.rfind('</body>')
+                html_content = html_content[:pos] + script_block + cdn + html_content[pos:]
+            else:
+                html_content = html_content + script_block + cdn
+            return html_content
+        except Exception:
+            return html_content
     
 
