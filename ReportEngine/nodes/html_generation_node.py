@@ -252,37 +252,30 @@ class HTMLGenerationNode(StateMutationNode):
             <p>ReportEngine v1.0 | 生成时间: {generation_time}</p>
         </div>
     </div>
-    <script>
-    (function(){
-      function filename(){
-        var t=document.querySelector('h1');
-        var n=t?t.textContent.trim():'报告';
-        n=n.replace(/[\\/:*?"<>|]/g,'_');
-        var d=new Date();
-        function pad(x){return String(x).padStart(2,'0');}
-        var ts=d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
-        return n+'_'+ts+'.pdf';
-      }
-      var p=document.getElementById('printBtn');
-      if(p){p.addEventListener('click',function(){window.print();});}
-      var e=document.getElementById('exportBtn');
-      if(e){
-        e.addEventListener('click',function(){
-          var el=document.body;
-          var opt={margin:0.5,filename:filename(),image:{type:'jpeg',quality:0.95},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:'in',format:'a4',orientation:'portrait'}};
-          if(window.html2pdf){html2pdf().set(opt).from(el).save();}else{window.print();}
-        });
-      }
-      var t=document.getElementById('themeBtn');
-      if(t){t.addEventListener('click',function(){
-        var cur=document.documentElement.getAttribute('data-theme');
-        document.documentElement.setAttribute('data-theme',cur==='dark'?'':'dark');
-      });}
-    })();
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 </body>
 </html>"""
+        
+        # 注入脚本到备用HTML（避免f-string中的花括号冲突）
+        try:
+            script_block = (
+                '<script>'
+                '(function(){'
+                'function filename(){var t=document.querySelector(\'h1\');var n=t?t.textContent.trim():\'报告\';n=n.replace(/[\\/:*?\"<>|]/g,\'_\');var d=new Date();function pad(x){return String(x).padStart(2,\'0\');}var ts=d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+\'_\'+pad(d.getHours())+pad(d.getMinutes());return n+\'_\'+ts+\'.pdf\';}'
+                'var p=document.getElementById(\'printBtn\');if(p){p.addEventListener(\'click\',function(){window.print();});}'
+                'var e=document.getElementById(\'exportBtn\');if(e){e.addEventListener(\'click\',function(){var el=document.body;var opt={margin:0.5,filename:filename(),image:{type:\'jpeg\',quality:0.95},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:\'in\',format:\'a4\',orientation:\'portrait\'}};if(window.html2pdf){html2pdf().set(opt).from(el).save();}else{window.print();}});}'
+                'var t=document.getElementById(\'themeBtn\');if(t){t.addEventListener(\'click\',function(){var cur=document.documentElement.getAttribute(\'data-theme\');document.documentElement.setAttribute(\'data-theme\',cur===\'dark\'?\'\':\'dark\');});}'
+                '})();'
+                '</script>'
+            )
+            cdn = '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>'
+            lower = html_content.lower()
+            if '</body>' in lower:
+                pos = lower.rfind('</body>')
+                html_content = html_content[:pos] + script_block + cdn + html_content[pos:]
+            else:
+                html_content = html_content + script_block + cdn
+        except Exception:
+            pass
         
         return html_content
 

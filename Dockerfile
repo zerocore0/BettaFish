@@ -38,14 +38,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install the latest uv release and expose it on PATH
-RUN curl -LsSf --retry 3 --retry-delay 2 --proto '=https' --proto-redir '=https' --tlsv1.2 https://astral.sh/uv/install.sh | sh
+# Install the latest uv release when network is available; fallback to pip
+RUN set -eux; \
+    (curl -LsSf --retry 3 --retry-delay 2 --proto '=https' --proto-redir '=https' --tlsv1.2 https://astral.sh/uv/install.sh | sh) \
+    || python -m pip install --upgrade pip
 
 WORKDIR /app
 
 # Install Python dependencies first to leverage Docker layer caching
 COPY requirements.txt ./
-RUN uv pip install --system -r requirements.txt
+RUN if command -v uv >/dev/null 2>&1; then \
+      uv pip install --system -r requirements.txt; \
+    else \
+      pip install --no-cache-dir -r requirements.txt; \
+    fi
 
 # Install Playwright browser binaries (system deps already handled above)
 RUN python -m playwright install chromium
